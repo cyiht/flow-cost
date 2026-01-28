@@ -1,0 +1,8 @@
+
+{
+  "name": "FlowCost",
+  "description": "An immersive personal finance and asset management app featuring durable goods amortization tracking, visual spending insights, and a sleek glassmorphic interface.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
