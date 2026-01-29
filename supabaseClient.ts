@@ -8,6 +8,14 @@ const supabaseUrl =
   (import.meta as any).env?.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
 const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 
+// Debug logs to help troubleshoot connection issues
+console.log('[Supabase] Initializing client...');
+console.log('[Supabase] URL:', supabaseUrl);
+console.log('[Supabase] Key present:', !!supabaseAnonKey);
+if (supabaseAnonKey && supabaseAnonKey.startsWith('sb_publishable_')) {
+  console.log('[Supabase] Using new Publishable Key format.');
+}
+
 if (!supabaseAnonKey) {
   // 在开发环境里给出明显提示，避免忘记配置 anon key
   // eslint-disable-next-line no-console
@@ -16,5 +24,13 @@ if (!supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey || '');
+export const supabase = createClient(supabaseUrl, supabaseAnonKey || '', {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
+export const hasAnonKey = !!supabaseAnonKey;
 
+console.log('[Supabase] Auth options set: persistSession=true, autoRefreshToken=true, detectSessionInUrl=true');

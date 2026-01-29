@@ -12,6 +12,7 @@ const CATEGORIES = [
   { name: 'Shopping', zhName: '购物', icon: 'shopping_bag' },
   { name: 'Entertainment', zhName: '娱乐', icon: 'movie' },
   { name: 'Health', zhName: '健康', icon: 'medical_services' },
+  { name: 'Other', zhName: '其他', icon: 'more_horiz' },
 ];
 
 const INCOME_CATEGORIES = [
@@ -41,6 +42,7 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiInput, setAiInput] = useState('');
   const [showAiModal, setShowAiModal] = useState(false);
+  const [customNote, setCustomNote] = useState('');
 
   const handleKeyClick = (key: string) => {
     if (key === 'backspace') {
@@ -135,15 +137,22 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
     const currentCats = entryType === 'Income' ? INCOME_CATEGORIES : CATEGORIES;
     const cat = currentCats.find(c => c.name === selectedCategory) || currentCats[0];
 
+    let finalTitle = language === 'zh' ? `${cat.zhName}${entryType === 'Income' ? '录入' : '购买'}` : `${cat.name} ${entryType === 'Income' ? 'Entry' : 'Purchase'}`;
+    let finalMerchant = entryType === 'Income' ? (language === 'zh' ? '个人收入' : 'Income') : (isDurable ? (language === 'zh' ? '耐用品' : 'Durable Good') : selectedCategory);
+
+    if (selectedCategory === 'Other' && customNote.trim()) {
+      finalTitle = customNote;
+    }
+
     const newTx: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: language === 'zh' ? `${cat.zhName}${entryType === 'Income' ? '录入' : '购买'}` : `${cat.name} ${entryType === 'Income' ? 'Entry' : 'Purchase'}`,
+      id: crypto.randomUUID(),
+      title: finalTitle,
       amount: numericAmount,
       category: selectedCategory,
       date: dateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: dateTime.getTime(),
       type: entryType === 'Income' ? 'credit' : (isDurable ? 'recurring' : 'debit'),
-      merchant: entryType === 'Income' ? (language === 'zh' ? '个人收入' : 'Income') : (isDurable ? (language === 'zh' ? '耐用品' : 'Durable Good') : selectedCategory)
+      merchant: finalMerchant
     };
 
     onAddTransaction(newTx, isDurable && entryType === 'Expense' ? { lifespanMonths: lifespan } : undefined);
@@ -172,7 +181,15 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
   const categoriesToRender = entryType === 'Income' ? INCOME_CATEGORIES : CATEGORIES;
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#f6f6f8] text-[#121217] relative overflow-hidden dark:bg-background-dark dark:text-white">
+    <div className="flex flex-col h-full w-full bg-[#e3e8e8] text-[#121217] relative overflow-hidden dark:bg-background-dark dark:text-white font-display">
+      {/* Soft gradient background effects */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[60%] bg-emerald-100/40 rounded-full blur-[100px] mix-blend-multiply dark:bg-emerald-900/20"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-100/40 rounded-full blur-[80px] mix-blend-multiply dark:bg-blue-900/20"></div>
+        <div className="absolute top-[30%] right-[10%] w-[40%] h-[40%] bg-purple-100/30 rounded-full blur-[60px] mix-blend-multiply dark:bg-purple-900/20"></div>
+        <div className="absolute inset-0 bg-white/20 backdrop-blur-[20px] dark:bg-black/20"></div>
+      </div>
+
       {/* Processing Overlay */}
       {isProcessing && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-xl animate-fade-in">
@@ -185,11 +202,6 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
           </div>
         </div>
       )}
-
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-cover bg-center opacity-80" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&q=80&w=800')" }}></div>
-        <div className="absolute inset-0 bg-white/40 dark:bg-black/40 backdrop-blur-[30px]"></div>
-      </div>
 
       <div className="relative z-10 flex flex-col h-full w-full">
         <header className="flex items-center justify-between px-6 pt-12 pb-2">
@@ -217,7 +229,7 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center px-6">
-          <div className="bg-lavender-accent/10 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl p-1 flex border border-lavender-accent/5 mb-6 w-full max-w-[200px]">
+          <div className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-md rounded-full p-1 flex mb-8 w-full max-w-[240px] shadow-sm">
             {(['Expense', 'Income'] as const).map((type) => (
               <button
                 key={type}
@@ -225,7 +237,7 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
                   setEntryType(type);
                   setSelectedCategory(type === 'Income' ? 'Salary' : 'Food');
                 }}
-                className={`flex-1 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${entryType === type ? 'bg-white dark:bg-gray-700 shadow-soft text-lavender-accent' : 'text-slate-400'}`}
+                className={`flex-1 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest transition-all ${entryType === type ? 'bg-white dark:bg-gray-700 shadow-sm text-[#121217] dark:text-white' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'}`}
               >
                 {type === 'Expense' ? t.expense : t.income}
               </button>
@@ -261,7 +273,7 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
             <div className="flex items-center justify-center gap-4 w-full">
               <div className="flex items-baseline justify-center gap-1">
                 <span className={`text-3xl font-light ${entryType === 'Income' ? 'text-emerald-500' : 'text-[#656586]'}`}>
-                  {entryType === 'Income' ? '+' : '¥'}
+                  ¥
                 </span>
                 <h1 className="text-[56px] font-light tracking-tight leading-none">
                   {amount.split('.')[0]}<span className="text-3xl text-[#656586]">.{amount.split('.')[1] || '00'}</span>
@@ -349,6 +361,19 @@ const Entry: React.FC<EntryProps> = ({ onAddTransaction, language }) => {
               ))}
             </div>
           </div>
+
+          {selectedCategory === 'Other' && (
+            <div className="w-full px-1 mb-4 animate-fade-in">
+              <input
+                type="text"
+                placeholder={language === 'zh' ? "请输入备注..." : "Enter note..."}
+                value={customNote}
+                onChange={(e) => setCustomNote(e.target.value)}
+                className="w-full bg-white/40 dark:bg-white/10 border-0 rounded-xl p-3 text-sm font-bold placeholder:text-gray-400 focus:ring-2 focus:ring-lavender-accent text-[#121217] dark:text-white text-center"
+                autoFocus
+              />
+            </div>
+          )}
         </main>
 
         <section className="grid grid-cols-4 gap-y-2 px-2 pb-8 pt-2 bg-gradient-to-t from-white/20 to-transparent">

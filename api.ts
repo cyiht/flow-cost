@@ -20,6 +20,15 @@ export async function signInWithEmail(email: string, password: string) {
   return data.user;
 }
 
+export async function signUpWithEmail(email: string, password: string) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+  if (error) throw error;
+  return data.user;
+}
+
 // ========== Profile ==========
 
 export async function getCurrentProfile(): Promise<UserProfile | null> {
@@ -112,18 +121,37 @@ export async function upsertBudgetRemote(budget: BudgetSettings) {
   const user = auth.user;
   if (!user) throw new Error('Not authenticated');
 
-  const { error } = await supabase.from('budgets').upsert(
-    {
+  // Check if budget exists for user
+  const { data: existing } = await supabase
+    .from('budgets')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
+    // Update
+    const { error } = await supabase
+      .from('budgets')
+      .update({
+        daily: budget.daily,
+        weekly: budget.weekly,
+        monthly: budget.monthly,
+        yearly: budget.yearly,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    // Insert
+    const { error } = await supabase.from('budgets').insert({
       user_id: user.id,
       daily: budget.daily,
       weekly: budget.weekly,
       monthly: budget.monthly,
       yearly: budget.yearly,
-    },
-    { onConflict: 'user_id' },
-  );
-
-  if (error) throw error;
+    });
+    if (error) throw error;
+  }
 }
 
 // ========== Transactions ==========
@@ -378,8 +406,10 @@ export async function insertMessageRemote(msg: Message) {
   const user = auth.user;
   if (!user) throw new Error('Not authenticated');
 
-  const { error } = await supabase.from('messages').insert({
-    id: msg.id,
+  const isUuid = (v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+  const payload: any = {
     user_id: user.id,
     title: msg.title,
     content: msg.content,
@@ -387,8 +417,12 @@ export async function insertMessageRemote(msg: Message) {
     icon: msg.icon,
     color: msg.color,
     ts: new Date(msg.timestamp).toISOString(),
-  });
+  };
+  if (msg.id && isUuid(msg.id)) {
+    payload.id = msg.id;
+  }
+
+  const { error } = await supabase.from('messages').insert(payload);
 
   if (error) throw error;
 }
-

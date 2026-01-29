@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Transaction, BudgetSettings, UserProfile, Language } from '../types';
 
@@ -16,6 +16,19 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
   const [trendingPeriod, setTrendingPeriod] = useState<'Weekly' | 'Monthly' | 'Yearly'>('Weekly');
   const [budgetPeriod, setBudgetPeriod] = useState<keyof BudgetSettings>('monthly');
   const [recentTab, setRecentTab] = useState<'Expense' | 'Income'>('Expense');
+
+  useEffect(() => {
+    if (transactions.length > 0) {
+      // Check the latest transaction (assuming transactions are ordered new -> old)
+      // If unordered, we might need: [...transactions].sort((a, b) => b.timestamp - a.timestamp)[0]
+      const latest = transactions[0];
+      if (latest && latest.type === 'credit') {
+        setRecentTab('Income');
+      } else {
+        setRecentTab('Expense');
+      }
+    }
+  }, [transactions]);
   const [isEditingBudget, setIsEditingBudget] = useState(false);
   const [isEditingIncome, setIsEditingIncome] = useState(false);
   const [tempBudgetValue, setTempBudgetValue] = useState('');
@@ -91,10 +104,35 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
     }
   };
 
+
+
   const chartData = useMemo(() => {
     const dayMs = 86400000;
     let dataPoints: number[] = [];
     let labels: string[] = [];
+    let stackedData: Array<{ total: number, breakdown: Record<string, number> }> = [];
+    const allCategories = new Set<string>();
+
+    const processBucket = (start: number, end: number, label: string) => {
+      const txs = transactions.filter(tx => 
+        tx.timestamp >= start && 
+        tx.timestamp < end && 
+        (tx.type === 'debit' || tx.type === 'recurring')
+      );
+      
+      const sum = txs.reduce((acc, tx) => acc + tx.amount, 0);
+      
+      const breakdown: Record<string, number> = {};
+      txs.forEach(tx => {
+        const cat = tx.category || 'Other';
+        breakdown[cat] = (breakdown[cat] || 0) + tx.amount;
+        allCategories.add(cat);
+      });
+
+      dataPoints.push(sum);
+      labels.push(label);
+      stackedData.push({ total: sum, breakdown });
+    };
 
     if (trendingPeriod === 'Weekly') {
       const currentDay = bjDate.getDay(); 
@@ -107,33 +145,21 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
       for (let i = 0; i < 7; i++) {
         const start = monday.getTime() + i * dayMs;
         const end = start + dayMs;
-        const sum = transactions
-          .filter(tx => tx.timestamp >= start && tx.timestamp < end && (tx.type === 'debit' || tx.type === 'recurring'))
-          .reduce((acc, tx) => acc + tx.amount, 0);
-        dataPoints.push(sum);
-        labels.push(dayNames[i]);
+        processBucket(start, end, dayNames[i]);
       }
     } else if (trendingPeriod === 'Monthly') {
       const startOfMonth = new Date(bjDate.getFullYear(), bjDate.getMonth(), 1).getTime();
       for (let i = 0; i < 4; i++) {
         const start = startOfMonth + i * 7 * dayMs;
         const end = start + 7 * dayMs;
-        const sum = transactions
-          .filter(tx => tx.timestamp >= start && tx.timestamp < end && (tx.type === 'debit' || tx.type === 'recurring'))
-          .reduce((acc, tx) => acc + tx.amount, 0);
-        dataPoints.push(sum);
-        labels.push(`w${i + 1}`);
+        processBucket(start, end, `w${i + 1}`);
       }
     } else {
       const currentYear = bjDate.getFullYear();
       for (let m = 0; m < 12; m++) {
         const d = new Date(currentYear, m, 1);
         const nextD = new Date(currentYear, m + 1, 1);
-        const sum = transactions
-          .filter(tx => tx.timestamp >= d.getTime() && tx.timestamp < nextD.getTime() && (tx.type === 'debit' || tx.type === 'recurring'))
-          .reduce((acc, tx) => acc + tx.amount, 0);
-        dataPoints.push(sum);
-        labels.push((m + 1).toString());
+        processBucket(d.getTime(), nextD.getTime(), (m + 1).toString());
       }
     }
 
@@ -160,8 +186,55 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
       label: labels[i]
     }));
 
-    return { path, labels, dataPoints, maxVal, points, step };
+    return { path, labels, dataPoints, maxVal, points, step, stackedData, categories: Array.from(allCategories) };
   }, [trendingPeriod, transactions, bjDate]);
+
+  // Color palette for categories
+  const categoryColors: Record<string, string> = {
+    'Food': '#FF9F43', // Orange
+    'Dining': '#FF9F43', 
+    'Transport': '#54A0FF', // Blue
+    'Shopping': '#FF6B6B', // Red
+    'Entertainment': '#5F27CD', // Purple
+    'Health': '#1DD1A1', // Green
+    'Medical': '#1DD1A1',
+    'Education': '#48DBFB', // Cyan
+    'Housing': '#F368E0', // Pink
+    'Rent': '#F368E0',
+    'Utilities': '#00d2d3',
+    'Other': '#8395A7', // Grey
+    'Income': '#10ac84',
+    'Salary': '#10ac84',
+  };
+
+  const getCategoryColor = (cat: string) => {
+    if (categoryColors[cat]) return categoryColors[cat];
+    // Generate a consistent color from string if not in palette
+    let hash = 0;
+    for (let i = 0; i < cat.length; i++) {
+      hash = cat.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+  };
+
+  const [selectedStackedIndex, setSelectedStackedIndex] = useState<number | null>(null);
+
+  const handleStackedChartInteraction = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const x = ('touches' in e) ? e.touches[0].clientX : e.clientX;
+    const relativeX = ((x - rect.left) / rect.width) * 100; // 0-100%
+    
+    // Find closest bar
+    const barCount = chartData.stackedData.length;
+    const barWidthPercent = 100 / barCount;
+    const index = Math.floor(relativeX / barWidthPercent);
+    
+    if (index >= 0 && index < barCount) {
+      setSelectedStackedIndex(index);
+    }
+  };
 
   const handleChartInteraction = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
@@ -193,7 +266,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
       weekly: language === 'zh' ? '每周' : 'WEEKLY',
       monthly: language === 'zh' ? '每月' : 'MONTHLY',
       yearly: language === 'zh' ? '每年' : 'YEARLY',
-    }
+    },
+    breakdownTitle: language === 'zh' ? '消费分类统计' : 'Category Breakdown',
   };
 
   const filteredRecent = transactions.filter(tx => {
@@ -208,12 +282,14 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
           <div className="h-10 w-10 rounded-full bg-gradient-to-br from-lavender-accent to-lavender-light p-[2px] shadow-glow">
             <img alt="User" className="h-full w-full rounded-full border-2 border-white dark:border-background-dark object-cover" src={user.avatar} />
           </div>
+
+
           <div>
             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{greeting},</p>
             <h1 className="text-xl font-extrabold dark:text-white">{user.name.split(' ')[0]}!</h1>
           </div>
-        </div>
-        <div className="flex gap-3">
+          </div>
+          <div className="flex gap-3">
           <button onClick={() => navigate('/messages')} className="p-2 rounded-full glass-panel shadow-soft text-lavender-accent">
             <span className="material-symbols-outlined text-xl">notifications</span>
           </button>
@@ -386,9 +462,108 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, user, langu
                   </span>
                 ))}
               </div>
-            </div>
           </div>
         </div>
+      </div>
+
+        <section className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-md rounded-3xl p-6 shadow-soft border border-white/40 mb-6 relative overflow-hidden">
+          <h3 className="text-[10px] font-extrabold dark:text-white uppercase tracking-tighter text-lavender-accent mb-4">{t.breakdownTitle}</h3>
+          
+          <div className="h-40 w-full relative mb-4">
+            <svg 
+              className="w-full h-full overflow-visible cursor-crosshair" 
+              preserveAspectRatio="none" 
+              viewBox="0 0 200 100"
+              onClick={handleStackedChartInteraction}
+              onTouchStart={handleStackedChartInteraction}
+              onMouseLeave={() => setSelectedStackedIndex(null)}
+            >
+              {chartData.stackedData.map((data, idx) => {
+                const barWidth = (200 / chartData.stackedData.length) * 0.6;
+                const spacing = (200 / chartData.stackedData.length) * 0.2;
+                const x = idx * (200 / chartData.stackedData.length) + spacing;
+                
+                let currentY = 100;
+                
+                return (
+                  <g key={idx} className="transition-opacity duration-300" opacity={selectedStackedIndex !== null && selectedStackedIndex !== idx ? 0.3 : 1}>
+                    {chartData.categories.map((cat, catIdx) => {
+                      const amount = data.breakdown[cat] || 0;
+                      if (amount === 0) return null;
+                      
+                      const height = (amount / (chartData.maxVal as number)) * 90;
+                      const y = currentY - height;
+                      currentY = y;
+                      
+                      return (
+                        <rect
+                          key={cat}
+                          x={x}
+                          y={y}
+                          width={barWidth}
+                          height={height}
+                          fill={getCategoryColor(cat)}
+                          rx={1}
+                        />
+                      );
+                    })}
+                  </g>
+                );
+              })}
+              
+              {selectedStackedIndex !== null && (
+                <g pointerEvents="none">
+                   {(() => {
+                     const data = chartData.stackedData[selectedStackedIndex];
+                     const x = selectedStackedIndex * (200 / chartData.stackedData.length) + (200 / chartData.stackedData.length) / 2;
+                     const breakdown = data.breakdown as Record<string, number>;
+                     const sortedCats = Object.entries(breakdown)
+                        .filter(([_, val]) => (val as number) > 0)
+                        .sort(([_, a], [__, b]) => (b as number) - (a as number));
+                     
+                     return (
+                       <foreignObject x={x > 100 ? x - 80 : x + 10} y="0" width="80" height="100">
+                         <div className="bg-[#121217]/90 backdrop-blur text-white text-[8px] rounded-lg p-2 shadow-xl border border-white/10 flex flex-col gap-1 z-50">
+                           <p className="font-bold border-b border-white/10 pb-1 mb-1">{chartData.labels[selectedStackedIndex]}</p>
+                           {sortedCats.map(([cat, val]) => (
+                             <div key={cat} className="flex justify-between items-center">
+                               <div className="flex items-center gap-1">
+                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: getCategoryColor(cat) }}></div>
+                                 <span className="opacity-80 truncate max-w-[40px]">{cat}</span>
+                               </div>
+                               <span className="font-mono">¥{val}</span>
+                             </div>
+                           ))}
+                           <div className="border-t border-white/10 pt-1 mt-1 flex justify-between font-bold text-lavender-accent">
+                             <span>Total</span>
+                             <span>¥{data.total}</span>
+                           </div>
+                         </div>
+                       </foreignObject>
+                     );
+                   })()}
+                </g>
+              )}
+            </svg>
+            
+            <div className="absolute bottom-[-18px] w-full flex justify-between text-[8px] text-lavender-light font-black px-2 uppercase tracking-tighter">
+                {chartData.labels.map((l, idx) => (
+                  <span key={idx} className={selectedStackedIndex === idx ? 'text-lavender-accent scale-110 transition-transform' : 'transition-transform'}>
+                    {l}
+                  </span>
+                ))}
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-3 mt-8 justify-center px-4">
+            {chartData.categories.map(cat => (
+              <div key={cat} className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: getCategoryColor(cat) }}></div>
+                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wide">{cat}</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-6 shadow-soft border border-white/50 mb-6">
           <div className="flex justify-between items-center mb-6">

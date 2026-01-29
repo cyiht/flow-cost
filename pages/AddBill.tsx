@@ -63,7 +63,7 @@ const AddBill: React.FC<AddBillProps> = ({ language, onSave }) => {
     else timeLeft = language === 'zh' ? `剩余 ${diffDays}天` : `${diffDays}d left`;
 
     const billData: Bill = {
-      id: editBill?.id || Math.random().toString(36).substr(2, 9),
+      id: editBill?.id || crypto.randomUUID(),
       name: name,
       amount: numAmount,
       date: `${month} ${day}`,
@@ -87,10 +87,13 @@ const AddBill: React.FC<AddBillProps> = ({ language, onSave }) => {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#f6f6f8] text-[#121217] relative overflow-hidden dark:bg-background-dark dark:text-white">
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1573164713988-8665fc963095?auto=format&fit=crop&q=80&w=800')" }}></div>
-        <div className="absolute inset-0 bg-white/40 dark:bg-black/60 backdrop-blur-[40px]"></div>
+    <div className="flex flex-col h-full w-full bg-[#e3e8e8] text-[#121217] relative overflow-hidden dark:bg-background-dark dark:text-white font-display">
+      {/* Soft gradient background effects */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[60%] bg-emerald-100/40 rounded-full blur-[100px] mix-blend-multiply dark:bg-emerald-900/20"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-100/40 rounded-full blur-[80px] mix-blend-multiply dark:bg-blue-900/20"></div>
+        <div className="absolute top-[30%] right-[10%] w-[40%] h-[40%] bg-purple-100/30 rounded-full blur-[60px] mix-blend-multiply dark:bg-purple-900/20"></div>
+        <div className="absolute inset-0 bg-white/20 backdrop-blur-[20px] dark:bg-black/20"></div>
       </div>
 
       <div className="relative z-10 flex flex-col h-full w-full">

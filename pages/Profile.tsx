@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
-import { UserProfile, Language } from '../types';
+import { UserProfile, Language, Transaction, DurableGood, Bill, Account } from '../types';
+import ExportDataModal from '../components/ExportDataModal';
 
 interface ProfileProps {
   user: UserProfile;
@@ -9,10 +10,28 @@ interface ProfileProps {
   onUpdateUser: (u: UserProfile) => void;
   onToggleTheme: () => void;
   onToggleLanguage: () => void;
+  onLogout: () => void;
+  transactions?: Transaction[];
+  durableGoods?: DurableGood[];
+  bills?: Bill[];
+  accounts?: Account[];
 }
 
-const Profile: React.FC<ProfileProps> = ({ user, theme, language, onUpdateUser, onToggleTheme, onToggleLanguage }) => {
+const Profile: React.FC<ProfileProps> = ({ 
+  user, 
+  theme, 
+  language, 
+  onUpdateUser, 
+  onToggleTheme, 
+  onToggleLanguage, 
+  onLogout,
+  transactions = [],
+  durableGoods = [],
+  bills = [],
+  accounts = []
+}) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [editedName, setEditedName] = useState(user.name);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -38,17 +57,7 @@ const Profile: React.FC<ProfileProps> = ({ user, theme, language, onUpdateUser, 
   };
 
   const exportData = () => {
-    const headers = "Date,Title,Amount,Category,Type,Merchant\n";
-    const data = "2023-10-24,Example Transaction,100.00,Shopping,Debit,Manual Export\n";
-    const blob = new Blob([headers + data], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('hidden', '');
-    a.setAttribute('href', url);
-    a.setAttribute('download', 'flowcost_report.csv');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    setIsExportModalOpen(true);
   };
 
   const t = {
@@ -63,6 +72,7 @@ const Profile: React.FC<ProfileProps> = ({ user, theme, language, onUpdateUser, 
     version: language === 'zh' ? '版本' : 'FlowCost v',
     uploadAvatar: language === 'zh' ? '上传头像' : 'Upload Avatar',
     randomAvatar: language === 'zh' ? '随机头像' : 'Random Avatar',
+    logout: language === 'zh' ? '退出登录' : 'Log Out',
   };
 
   return (
@@ -199,12 +209,37 @@ const Profile: React.FC<ProfileProps> = ({ user, theme, language, onUpdateUser, 
             </div>
             <span className="material-symbols-outlined text-gray-400">chevron_right</span>
           </button>
+          
+          <button 
+            onClick={onLogout}
+            className="group flex items-center justify-between w-full p-5 bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl shadow-soft border border-white/50 hover:bg-white transition-all duration-300"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 group-hover:scale-110 transition-transform shadow-inner-light">
+                <span className="material-symbols-outlined">logout</span>
+              </div>
+              <span className="font-black text-slate-900 dark:text-white text-[15px] uppercase tracking-wider">{t.logout}</span>
+            </div>
+            <span className="material-symbols-outlined text-gray-400">chevron_right</span>
+          </button>
         </section>
 
         <section className="mt-12 text-center pb-12">
           <p className="text-[10px] font-black text-lavender-light uppercase tracking-[0.4em]">{t.version}2.5.0</p>
         </section>
       </main>
+
+      <ExportDataModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        language={language}
+        data={{
+          transactions,
+          durableGoods,
+          bills,
+          accounts
+        }}
+      />
     </div>
   );
 };

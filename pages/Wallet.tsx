@@ -29,6 +29,10 @@ const Wallet: React.FC<WalletProps> = ({ accounts, bills, language, onDeleteAcco
     bills.reduce((acc, b) => acc + b.amount, 0),
   [bills]);
 
+  const sortedBills = useMemo(() => 
+    [...bills].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)),
+  [bills]);
+
   const filteredAccounts = useMemo(() => 
     accounts.filter(a => a.type === (activeTab === 'Assets' ? 'Asset' : 'Liability')),
   [accounts, activeTab]);
@@ -167,7 +171,7 @@ const Wallet: React.FC<WalletProps> = ({ accounts, bills, language, onDeleteAcco
                 <div 
                   key={acc.id} 
                   onClick={() => navigate('/add-account', { state: { editAccount: acc } })}
-                  className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-5 shadow-soft flex items-center justify-between group transition-all active:scale-[0.98] border border-white/50 hover:border-lavender-accent/20 cursor-pointer"
+                  className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-5 shadow-soft flex items-center justify-between group transition-all active:scale-[0.98] border border-white/50 hover:border-lavender-accent/20 cursor-pointer relative"
                 >
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded-2xl bg-lavender-accent/10 text-lavender-accent flex items-center justify-center group-hover:shadow-glow transition-all">
@@ -189,6 +193,12 @@ const Wallet: React.FC<WalletProps> = ({ accounts, bills, language, onDeleteAcco
                         <p className="text-[10px] font-bold text-slate-300">{t.steady}</p>
                       )}
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDeleteAccount(acc.id); }}
+                      className="h-8 w-8 rounded-xl bg-black/5 dark:bg-white/10 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center justify-center transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
                   </div>
                 </div>
               ))
@@ -211,25 +221,32 @@ const Wallet: React.FC<WalletProps> = ({ accounts, bills, language, onDeleteAcco
           </div>
           
           <div className="grid grid-cols-2 gap-4 pb-12">
-            {bills.length === 0 ? (
+            {sortedBills.length === 0 ? (
               <div className="col-span-2 py-12 text-center bg-white/40 dark:bg-gray-800/40 backdrop-blur-md rounded-3xl border border-dashed border-lavender-accent/20">
                 <p className="text-xs font-bold uppercase text-lavender-accent/40">{t.noBills}</p>
               </div>
             ) : (
-              bills.map((bill) => (
+              sortedBills.map((bill) => (
                 <div 
                   key={bill.id} 
                   onClick={() => navigate('/add-bill', { state: { editBill: bill } })}
-                  className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-2xl rounded-3xl p-4 shadow-soft flex flex-col justify-between hover:border-lavender-accent/30 transition-all cursor-pointer border border-white/50 h-36"
+                  className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-2xl rounded-3xl p-4 shadow-soft flex flex-col justify-between hover:border-lavender-accent/30 transition-all cursor-pointer border border-white/50 h-36"
                 >
                   <div className="flex justify-between items-start">
                     <div className="h-10 w-10 rounded-xl bg-lavender-accent/10 text-lavender-accent flex items-center justify-center shadow-inner-light">
                       <span className="material-symbols-outlined text-[20px]">{bill.icon}</span>
                     </div>
-                    <span className={`text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest ${bill.timeLeft.toLowerCase().includes('tomorrow') || bill.timeLeft.toLowerCase().includes('today') || bill.timeLeft.includes('明天') || bill.timeLeft.includes('今天') ? 'bg-rose-50 text-rose-500' : 'bg-lavender-accent/5 text-lavender-accent'}`}>
-                      {translateTimeLeft(bill.timeLeft)}
-                    </span>
+                  <span className="text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest bg-lavender-accent/5 text-lavender-accent">
+                    {translateTimeLeft(bill.timeLeft)}
+                  </span>
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id); }}
+                    title={language === 'zh' ? '删除账单' : 'Delete Bill'}
+                    className="absolute top-10 right-3 h-8 w-8 rounded-xl bg-black/5 dark:bg-white/10 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center justify-center transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
                   <div className="mt-2">
                     <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-0.5">{translateDate(bill.date)}</p>
                     <p className="text-xs font-black dark:text-white truncate mb-1">{translateBillName(bill.name)}</p>
